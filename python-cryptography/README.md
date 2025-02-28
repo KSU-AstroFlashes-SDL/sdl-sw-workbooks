@@ -38,7 +38,7 @@ First we need to import the things we'll need:
 from secrets import token_bytes as random_bytes
 from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers.algorithms import AES
-from cryptography.hazmat.primitives.ciphers.modes import CBC
+from cryptography.hazmat.primitives.ciphers.modes import ECB
 ```
 
 To encrypt/decrypt anything, we'll need a random key.
@@ -48,7 +48,7 @@ secret_key = random_bytes(16)
 
 We need something "secret" to encrypt.  This is conventionally called the "plaintext."
 ```python
-plaintext = "I wish my socks were as in-vogue as Dr. Kwasa's!"
+plaintext = b"I wish my socks were as in-vogue as Dr. Kwasa's!"
 ```
 
 Now we encrypt the plaintext.  The output is conventionally called the "ciphertext."
