@@ -1,10 +1,10 @@
 # Python `cryptography`
 This workbook is a series of working examples of software cryptography using the "de-facto standard" Python cryptography library named, appropriately, [`cryptography`](https://cryptography.io/ "The 'cryptography' library includes both high level recipes and low level interfaces to common cryptographic algorithms such as symmetric ciphers, message digests, and key derivation functions.").
 
-> [!WARNING]
+> [!CAUTION]
 > **DO NOT** regard the `cryptography` library's documentation examples as "safe/correct usage." They are not. They are intended to show how the API works, but in many cases they can lead to catastrophic security flaws if followed verbatim in "production" code. The examples in this workbook will clarify such cases and demonstrate the correct usage.
 
-> [!NOTE]
+> [!TIP]
 > Instructions in this workbook are either Bash (shell) commands or Python commands. All commands can be copied by clicking the *copy-to-clipboard* button to the right of the command block. (Instructions will hint whether to paste a copied command into a Bash command line or a Python interpreter.)
 
 The only thing you need to complete this workbook is a working Python interpreter.  Refer to the *sdl-sw-workbooks* [README](../README.md) for various installation options for your OS.
@@ -77,6 +77,7 @@ secret_key = random_bytes(16)
 ```
 > [!WARNING]
 > The shared secret key **must** be protected.  The security of the *entire system* (using symmetric encryption/decryption) relies **solely** on the secrecy of this key.  This is known as **Kerckhoffs's principle**. It is the most fundamental principle upon which symmetric encryption is based.
+> 
 > (In fact, in a true/real system, we wouldn't even store our secret key in a variable! We *only* do so here to simplify our examples.)
 
 The basic building block for cryptography is called a "primitive."  In software cryptography, we typically use a "cipher," which is a generic container that can make use of a specific primitive. In other words, the cipher is a software construct that performs the mathematical encryption and decryption operations.
@@ -126,9 +127,11 @@ We need something "confidential" to encrypt (conventionally called the *plaintex
 ```python
 plaintext = "I envy Dr. Kwasa's socks.".encode("utf-8")
 ```
-> [!NOTE]
+> [!TIP]
 > Encryption (and decryption) is an operation performed on *bytes*.  A string variable -- such as "I envy Dr. Kwasa's socks." -- is not made up of bytes but rather of something called "glyphs" (visual symbols that represent language-specific characters).
+> 
 > To obtain bytes from glyphs, we need to *encode* a string using a particular "character encoding." It is important when we are encrypting/decrypting to always use the **same** character encoding to encode/decode to/from bytes. *(Failing to do so is a common defect in software cryptography!)*
+> 
 > For practical purposes, and unless there is a compelling reason to do otherwise, always use the UTF-8 character encoding scheme. This technique is demonstrated in the code examples that follow.
 
 Notice that our plaintext is actually 25 bytes in length (verified by `len(plaintext)` in your Python interpreter). This means that we need to "pad" our plaintext *before* encrypting.
@@ -148,9 +151,11 @@ To perform an encryption operation, we need to initialize a cipher for encryptio
 ```python
 encryptor = Cipher(AES(secret_key), ECB()).encryptor()
 ```
-> [!CRITICAL]
-> You might be tempted to "simplify" the above expression by breaking it up into smaller pieces (as in the `cryptography` documentation, where the cipher object is created and assigned to its own variable, followed by the encryptor.
+> [!CAUTION]
+> You might be tempted to "simplify" the above expression by breaking it up into smaller pieces (as in the `cryptography` documentation, where the cipher object is created and assigned to its own variable, followed by the encryptor).
+> 
 > **DON'T!**
+> 
 > Safe/correct cryptographic usage of the `cryptography` API *requires* that neither the cipher nor encryptor object is reused. More on this later.
 
 Now we use the encryptor to encrypt the (padded) plaintext.  The output is conventionally called the *ciphertext*:
