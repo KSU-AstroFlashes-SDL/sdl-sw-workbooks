@@ -206,7 +206,7 @@ Now we just allow the "new" ciphertext to be printed out (rather than storing it
 ```python
 encryptor.update(plaintext) + encryptor.finalize()
 ```
-At this point, you can either scroll up, or enter the variable name `ciphertext` followed by <Enter>. In either case, you'll notice that we got the *exact same ciphertext output*.
+At this point, you can either scroll up in your terminal, or enter the variable name `ciphertext` followed by \<Enter\>. In either case, you'll notice that we got the *exact same ciphertext output*.
 
 In cryptography, this is very, *very*, ***very*** bad. Without getting into the mathematical "proof," suffice it to say that if an adversary notices this pattern, and knows some minimum information about the nature of the plaintext being encrypted (e.g. it's in JSON format, or it contains a specific prefix), then the original plaintext can be recovered by the adversary **even *without* the secret key!**
 
