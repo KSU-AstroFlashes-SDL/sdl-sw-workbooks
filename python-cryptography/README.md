@@ -155,7 +155,7 @@ encryptor = Cipher(AES(secret_key), ECB()).encryptor()
 
 Now we use the encryptor to encrypt the (padded) plaintext.  The output is conventionally called the *ciphertext*:
 ```python
-ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
 ```
 > [!NOTE]
 > An `encryptor` object is no longer usable after `encryptor.finalize()` has been called. This is by design.
