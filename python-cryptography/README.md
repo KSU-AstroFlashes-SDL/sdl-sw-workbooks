@@ -209,7 +209,7 @@ encryptor = Cipher(AES(secret_key), ECB()).encryptor()
 ```
 Now we just allow the "new" ciphertext to be printed out (rather than storing it in a variable):
 ```python
-encryptor.update(plaintext) + encryptor.finalize()
+encryptor.update(padded_plaintext) + encryptor.finalize()
 ```
 At this point, you can either scroll up in your terminal, or enter the variable name `ciphertext` followed by \<Enter\>. In either case, you'll notice that we got the *exact same ciphertext output*.
 
