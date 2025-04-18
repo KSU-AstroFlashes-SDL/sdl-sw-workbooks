@@ -215,3 +215,6 @@ At this point, you can either scroll up in your terminal, or enter the variable 
 
 In cryptography, this is very, *very*, ***very*** bad. Without getting into the mathematical "proof," suffice it to say that if an adversary notices this pattern, and knows some minimum information about the nature of the plaintext being encrypted (e.g. it's in JSON format, or it contains a specific prefix), then the original plaintext can be recovered by the adversary **even *without* the secret key!**
 
+> [!NOTE]
+> A working example of the ECB weakness is provided in this workbook's supplementary materials: [Real world: Recover an AES-ECB-encrypted secret](ECB-recovery.md)
+
