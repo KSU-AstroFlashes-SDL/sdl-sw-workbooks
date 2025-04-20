@@ -1,7 +1,7 @@
 from base64 import b64encode
 import sys
 
-from aescrypt import encrypt, decrypt
+from ecbcrypt import encrypt, decrypt
 
 
 def validated_account(email: str) -> str:

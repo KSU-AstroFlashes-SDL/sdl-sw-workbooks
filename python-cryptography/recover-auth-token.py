@@ -5,7 +5,7 @@ import subprocess
 import sys
 from types import FunctionType
 
-from aescrypt import encrypt
+from ecbcrypt import encrypt
 
 ALPHABET = string.ascii_letters + string.digits
 
