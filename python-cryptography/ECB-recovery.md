@@ -1,6 +1,6 @@
 # Real world: Recover an AES-ECB-encrypted secret
 
-In the first section of [Python cryptography](README.md) we learned that "ECB mode is bad" because *same-plaintext-input* produces *same-ciphertext-output*.  (In simpler terms: ECB mode exposes relationships between plaintext and ciphertext.)
+In Exercise 1 of [Python cryptography](README.md) we learned that "ECB mode is bad" because *same-plaintext-input* produces *same-ciphertext-output*.  (In simpler terms: ECB mode exposes relationships between plaintext and ciphertext.)
 
 Here, to reinforce (and prove) that weakness, we will observe firsthand that an AES-ECB-encrypted secret can be easily recovered.
 
@@ -13,8 +13,8 @@ Here, to reinforce (and prove) that weakness, we will observe firsthand that an 
 > Additional information is presented in the comments within those scripts, and is recommended reading for those who wish to understand the concepts.
 
 ## Confirm that AES is being used incorrectly
-The [make-admin.py](make-admin.py) script is what allows us to identify the misuse **and** take advantage of the misuse. (It's an "encryption oracle," which is explained in more detail in its comments.)
-```shell
+The [make-admin.py](make-admin.py) script is what allows us to identify the misuse **and** take advantage of the misuse. (It's what's called an "encryption oracle," which is explained in more detail in its comments.)
+```console
 python make-admin.py account@example.com
 ```
 Note the output.
@@ -38,5 +38,4 @@ python recover-auth-token.py
 
 Sit back and enjoy the show... you'll observe (in real-time) as we recover the secret Vendor admin authentication code byte-by-byte.
 
-(If you have any doubt as to the effectiveness of the recovery script, go ahead and CHANGE the authentication token within the `make-admin.py` script. The `recover-auth-token.py` script will still expose it.)
-
+(If you have any doubt as to the effectiveness of the recovery script, go ahead and CHANGE the authentication token within the `make-admin.py` script. The `recover-auth-token.py` script will still expose it successfully.)

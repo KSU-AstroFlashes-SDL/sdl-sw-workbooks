@@ -1,3 +1,5 @@
+"""Recover an encrypted authentication token WITHOUT knowing the secret key."""
+
 from base64 import b64decode
 from os import getenv
 import string
@@ -5,20 +7,22 @@ import subprocess
 import sys
 from types import FunctionType
 
-from ecbcrypt import encrypt
-
 ALPHABET = string.ascii_letters + string.digits
 
 if (debug := getenv("DEBUG")) and debug in "1Yy":
+
     def _DEBUG(*msgs, **extra):
         for msg in msgs:
             print(f"{msg}", file=sys.stderr)
-        for (name, value) in extra.items():
+        for name, value in extra.items():
             print(f"\u21b3 {name}: {value}", file=sys.stderr)
+
     _DEBUG.enabled = True
 else:
+
     def _DEBUG(*msgs, **extra):
         pass
+
     _DEBUG.enabled = False
 
 # Note: You will not find a reference to the secret key in this script.
@@ -26,6 +30,7 @@ else:
 # The use of ECB mode, combined with the format/structure of the plaintext (and
 # the fact that we have access to an encryption oracle) means that we'll be
 # able to recover the "secret" authentication token using ONLY the oracle!
+
 
 # An oracle is some service available to the adversary. It could be as simple
 # as the "make-admin.py" script we use here; it could be a Web service; it
@@ -36,16 +41,17 @@ else:
 # (Even in cases where access to the actual oracle is rate-limited, the
 # adversary can EASILY determine that limit and implement this function
 # appropriately - the ONLY downside being the overall time to recovery!)
-def encryption_oracle(plaintext: bytes) -> bytes:
+def encryption_oracle(plaintext: bytes, cbc: bool = False) -> bytes:
     args = ["python", "make-admin.py", plaintext.decode("ascii")]
-    completed = subprocess.run(args, capture_output=True, text=True,
-                               check=True)
+    if cbc:
+        args.insert(2, "--cbc")
+    completed = subprocess.run(args, capture_output=True, text=True, check=True)
     _DEBUG(f"{args!r}", output=completed.stdout.strip())
     return b64decode(completed.stdout)
 
 
 # this just allows us to more easily visualize ciphertext blocks
-def _debug_hex_blocks(label: str, ct: bytes, blksz: int, indent: str=' '):
+def _debug_hex_blocks(label: str, ct: bytes, blksz: int, indent: str = " ") -> None:
     _DEBUG(f"{label}:")
     if _DEBUG.enabled:
         for b in range(0, len(ct) // blksz):
@@ -60,18 +66,18 @@ def _debug_hex_blocks(label: str, ct: bytes, blksz: int, indent: str=' '):
 # This isn't even necessary if we know the algorithm (e.g. AES always has a
 # block size of 16 bytes), but is implemented here to demonstrate how trivial
 # it is! (recall Kerckhoffs's principle!)
-def discern_block_size(oracle: FunctionType):
-    min_valid_account = b'Z'
+def discern_block_size(oracle: FunctionType, cbc: bool = False) -> int:
+    min_valid_account = b"Z"
     min_valid_email = min_valid_account + b"@example.com"
-    min_ctlen = len(oracle(min_valid_email))
+    min_ctlen = len(oracle(min_valid_email, cbc=cbc))
     _DEBUG("discern_block_size", email=min_valid_email, ctlen=min_ctlen)
 
     # a range that's open for double the largest practical block size gives us
     # more than reasonable flexibility while avoiding the possibility of an
     # infinite loop
     for i in range(1, 64):
-        email_i = (i * b'Z') + min_valid_email
-        ctlen_i = len(oracle(email_i))
+        email_i = (i * b"Z") + min_valid_email
+        ctlen_i = len(oracle(email_i, cbc=cbc))
         _DEBUG("discern_block_size", email=email_i, ctlen=ctlen_i)
         if ctlen_i > min_ctlen:
             return ctlen_i - min_ctlen
@@ -80,16 +86,37 @@ def discern_block_size(oracle: FunctionType):
 
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
+    parser = ArgumentParser(usage=__doc__)
+    parser.add_argument(
+        "--cbc",
+        action="store_true",
+        help="use AES in CBC mode (default is AES in ECB mode)",
+    )
+
+    args = parser.parse_args()
+
     # Q: What does an adversary KNOW?
     # A: Whatever the make-admin.py script (i.e. the "oracle") and/or the
     #    documentation divulges!
     #
     # For example:
     #
+    # ------------------------------------------------------------------
     # $ python make-admin.py -h
-    # USAGE: python make-admin.py <account>@example.com
-    # Generate the Vendor, Inc. admin login credential for <account>:
-	# base64(encrypt("<account><vendor-admin-auth-token>"))
+    # usage: Generate a Vendor, Inc. admin authentication credential.
+    #
+    # positional arguments:
+    #   email       the admin user's email address
+    #               (i.e. <account>@example.com)
+    #
+    # options:
+    #   -h, --help  show this help message and exit
+    #   --cbc       use AES in CBC mode (default is AES in ECB mode)
+    #
+    # Admin authentication credentials are in the format
+    # base64(encrypt("<account><vendor-admin-auth-token>"))
+    # ------------------------------------------------------------------
     #
     # Now we know:
     #       (a) the prefix "<account>"
@@ -112,7 +139,7 @@ if __name__ == "__main__":
     # (We don't NEED this in most cases b/c we'll already know which encryption
     # algorithm is in use - e.g. AES will ALWAYS be block size 16! We include
     # it here to demonstrate how trivial it is to discover.)
-    blksz = discern_block_size(encryption_oracle)
+    blksz = discern_block_size(encryption_oracle, cbc=args.cbc)
     _DEBUG(f"block size = {blksz}")
 
     # Since we KNOW...:
@@ -137,7 +164,7 @@ if __name__ == "__main__":
     # To figure out the max length, we first need to know how many bytes of
     # ciphertext are produced by our minimum valid input (i.e. an account name
     # of length one):
-    ctlen = len(encryption_oracle(b"Z@example.com"))
+    ctlen = len(encryption_oracle(b"Z@example.com", cbc=args.cbc))
 
     # The ctlen will be a multiple of blksz, so we can now start to "count
     # backward" to determine the maximum authentication token length.
@@ -159,17 +186,20 @@ if __name__ == "__main__":
     # the right amount of "buffer" to accommodate all recovered bytes of the
     # authentication token!
     acct_len = ctlen
-    controlled_input = ('Z' * acct_len) + "@example.com"
-    controlled_ct = encryption_oracle(controlled_input.encode("ascii"))
-    _DEBUG(f"blocks < {acct_len//blksz} are the \"controlled input\"",
-            f"blocks >= {acct_len//blksz} are the encrypted authentication token")
-    _debug_hex_blocks(f"controlled_input {controlled_input!r}",
-                      controlled_ct, blksz)
-    alt_input = ('A' * acct_len) + "@example.com"
-    alt_ct = encryption_oracle(alt_input.encode("ascii"))
-    _DEBUG("Notice how ECB produces same encrypted authentication token "
-           "block(s) even if we change our controlled input (as long as we "
-           "maintain the same block boundary)")
+    controlled_input = ("Z" * acct_len) + "@example.com"
+    controlled_ct = encryption_oracle(controlled_input.encode("ascii"), cbc=args.cbc)
+    _DEBUG(
+        f'blocks < {acct_len // blksz} are the "controlled input"',
+        f"blocks >= {acct_len // blksz} are the encrypted authentication token",
+    )
+    _debug_hex_blocks(f"controlled_input {controlled_input!r}", controlled_ct, blksz)
+    alt_input = ("A" * acct_len) + "@example.com"
+    alt_ct = encryption_oracle(alt_input.encode("ascii"), cbc=args.cbc)
+    _DEBUG(
+        "Notice how ECB produces same encrypted authentication token "
+        "block(s) even if we change our controlled input (as long as we "
+        "maintain the same block boundary)"
+    )
     _debug_hex_blocks(f"alt_input {alt_input!r}", alt_ct, blksz)
 
     # Most importantly, this means that the authorization token (which is the
@@ -192,9 +222,9 @@ if __name__ == "__main__":
     for i in range(1, acct_len):
         # always i bytes "short" of a block boundary; this means that i bytes
         # of the secret get encrypted at the END of the block boundary
-        short_acct = 'Z' * (acct_len - i)
+        short_acct = "Z" * (acct_len - i)
         short_input = short_acct + "@example.com"
-        next_ct = encryption_oracle(short_input.encode("ascii"))
+        next_ct = encryption_oracle(short_input.encode("ascii"), cbc=args.cbc)
         _debug_hex_blocks(f"short_input {short_input!r}?", next_ct, blksz)
         _DEBUG(f"Trying to match {next_ct[:blksz].hex()}...")
         matched = False
@@ -204,22 +234,24 @@ if __name__ == "__main__":
             # byte of the secret when we get a matching block!
             guess_acct = short_acct + recovered + guess
             guess_input = guess_acct + "@example.com"
-            guess_ct = encryption_oracle(guess_input.encode("ascii"))
-            _debug_hex_blocks(f"guess {guess!r} guess_input {guess_input!r}",
-                              guess_ct, blksz)
+            guess_ct = encryption_oracle(guess_input.encode("ascii"), cbc=args.cbc)
+            _debug_hex_blocks(
+                f"guess {guess!r} guess_input {guess_input!r}", guess_ct, blksz
+            )
             if guess_ct[:blksz] == next_ct[:blksz]:
                 # guess is correct; we've recovered the next byte!
                 recovered += guess
                 matched = True
                 print(f"RECOVERED: {recovered!r}")
-                break   # inner (guess) loop
+                break  # inner (guess) loop
         if not matched:
-            break   # outer (i) loop
+            break  # outer (i) loop
 
-    sys.exit(0
-             if len(recovered) >= min_auth_token_len and
-                len(recovered) <= max_auth_token_len
-             else 1)
+    sys.exit(
+        0
+        if len(recovered) >= min_auth_token_len and len(recovered) <= max_auth_token_len
+        else 1
+    )
 
 # P.S. - This recovery script has a defect! This script *works*, and
 # demonstrably proves the weakness of ECB mode, but the defect is that there is
@@ -231,4 +263,3 @@ if __name__ == "__main__":
 # (Hint: What if Vendor decided to use an authentication token with entropy
 # >=100 but WITHOUT changing the ALPHABET? You MAY need to solve the
 # make-admin.py challenge before you can solve this one!)
-
