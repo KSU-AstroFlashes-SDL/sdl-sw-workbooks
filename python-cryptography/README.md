@@ -394,7 +394,7 @@ original_plaintext.decode("utf-8")
 
 We've twice noted that *"using the same secret-key & IV to encrypt the same message (i.e. same plaintext) twice is actually catastrophic for CBC mode"*. But why is that?
 
-Recall from our ECB mode discussion and demonstration that producing the same ciphertext for the same plaintext can allow the secret to be completely recovered **even without knowledge of the secret key**. Let's now extend this concept to CBC mode. We know that CBC mode "protects" against this case, but **only if the Isame V+secret_key combination is never re-used.** The reason that's critical is because re-using the same IV+secret!!_key combination effectively "devolves" into the ECB case!
+Recall from our ECB mode discussion and demonstration that producing the same ciphertext for the same plaintext can allow the secret to be completely recovered **even without knowledge of the secret key**. Let's now extend this concept to CBC mode. We know that CBC mode "protects" against this case, but **only if the same IV+secret_key combination is never re-used.** The reason that's critical is because re-using the same IV+secret!!_key combination effectively "devolves" into the ECB case!
 
 Remember the fundamental purpose of the IV: to serve as a stand-in for the "previous" ciphertext block when we are encrypting the *first* plaintext block. Well, if we re-used the same IV with the same secret key... then we'd still get the same ciphertext for the same plaintext! And now we're right back to the problem we encountered with ECB mode!
 
