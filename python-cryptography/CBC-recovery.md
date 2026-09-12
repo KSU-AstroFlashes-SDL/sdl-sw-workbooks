@@ -27,7 +27,7 @@ challenge to interested developers).
 > mathematical strength/correctness of the AES *algorithm* remains uncompromised in our
 > demonstrations.
 
-> [!CRITICAL]
+> [!TIP]
 > Understanding the distinction in the previous note leads to perhaps the single most critical
 > "lesson" to learn about cybersecurity (whether at the hardware, network, or middleware/software
 > layer):
