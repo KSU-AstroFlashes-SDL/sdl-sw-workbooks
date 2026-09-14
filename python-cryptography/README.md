@@ -233,8 +233,7 @@ In cryptography, this is very, *very*, ***very*** bad. Without getting into the 
 
 ### A brief introduction to CBC mode
 
-**Q:** If ECB mode is unsafe, what can we use instead?
-**A:** CBC (Cipher Block Chaining) mode provides improved security over ECB.
+CBC (Cipher Block Chaining) mode provides improved security over ECB.
 
 Here's a simplified explanation of how CBC mode works:
 
@@ -410,3 +409,390 @@ Note the output ciphertext. Now repeat those same two commands again (i.e., encr
 
 > [!NOTE]
 > A working example of the CBC-with-IV-reuse weakness is provided in this workbook's supplementary materials: [Real world: Recover an AES-CBC-encrypted secret due to IV misuse](CBC-recovery.md)
+
+----
+
+## Interlude: Authenticity: What is it and why do I care?
+
+Until now, we've only concerned ourselves with one aspect of data security: *confidentiality*. In cryptography, this is the "guarantee" that sensitive data is only retrievable by parties that possess the secret key (for symmetric key algorithms like AES).
+
+But there's another concern that is arguably just as important: *authenticity*. In other words, how do I know that these ciphertext bytes I've received have not been corrupted (or worse, forged)?
+
+An encryption algorithm like AES does not concern itself with authenticity; its job is to ensure confidentiality only. This means that authenticity needs to be implemented as a separate step.
+
+In traditional practice, a process called "encrypt-then-sign" was used to guarantee both confidentiality and authenticity. The "encrypt-then-sign" process is as follows:
+
+1. Sender provides or publishes their asymmetric PUBLIC key.
+2. Sender & receiver agree on a symmetric (shared) secret key.
+3. Sender encrypts sensitive data using the symmetric (shared) secret key.
+4. Sender digitally signs the ciphertext using their asymmetric PRIVATE key.
+5. Sender conveys the signature+ciphertext to the receiver.
+6. Receiver verifies the signature using the sender's provided/published asymmetric PUBLIC key.
+7. IF the signature passes verification, THEN receiver decrypts sensitive data using the symmetric (shared) secret key, ELSE receiver discards the data.
+   (Importantly, in the "ELSE" case, receiver never performs decryption because the data either is garbage or, in the case of forgery, dangerous.)
+
+This is a reliable, proven process for sharing sensitive data, but notice that it requires a non-insignificant amout of overhead. The sender and receiver must agree upon (i.e., share) TWO different keys: the sender's asymmetric PUBLIC key *and* the symmetric (shared) secret key.
+And the sharing of a symmetric secret key is a process that *itself* must be secured! In fact, sharing of symmetric secret keys is an entire field of research in its own right!
+(For the curious: see
+[Diffie-Hellman key exchange](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange),
+one of the oldest key-sharing mechanisms still in use.)
+
+But what if we could somehow simplify confidentiality+authenticity? As it turns out, we can.
+
+### Authenticated Encryption (with Associated Data)
+
+**AE** ([**A**uthenticated **E**ncryption](https://en.wikipedia.org/wiki/Authenticated_encryption)) is an encryption scheme that *simultaneously* ensures data confidentiality (by encryption) and data authenticity (by signing).
+(In contrast, AES-CBC is a non-AE scheme that provides *only* data confidenitality by encryption; you'd need to "manually" sign the encrypted data in a separate step to be able to assert its authenticity.)
+
+**AEAD** is
+[**A**uthenticated **E**ncryption _with **A**ssociated **D**ata_](https://en.wikipedia.org/wiki/Authenticated_encryption#Authenticated_encryption_with_associated_data).
+This scheme allows you to associate *unencrypted* data with the encrypted data while verifying the authenticity of *both* (as a unit). The canonical example is a network packet where the header data needs to remain unencrypted but the *combination* of unencrypted headers and encrypted payload should be verified as a unit. So you'd verify the digital signature (cryptographic hash) of the headers+payload and only *then* would you decrypt the payload. (Otherwise you'd discard it.)
+
+AEAD is the preferred encryption/decryption mechanism in the modern day, precisely because of the combined confidentiality+authenticity mechanism. Many modern software cryptography libraries take this one step further, abstracting (hiding) *all* of the details of cipher setup and initialization behind a simplified API that attempts to make misuse impossible (or at least difficult). Such APIs are beyond the scope of this workbook, as our purpose here is to teach basic concepts.
+
+Two prominent AEAD constructions are AES-GCM and ChaCha20-Poly1305, covered in the final two exercises below.
+
+----
+
+## Exercise 3: Symmetric key AEAD encryption/decryption (AES in GCM mode)
+
+**GCM** (**G**alois **C**ounter **M**ode) is a block cipher mode that implements the AEAD scheme.
+Thus, AES-GCM gives us the confidentiality guaranteed by AES along with the authenticity guarantee of a Message Authentication Code (MAC).
+
+> [!NOTE]
+> A MAC (Message Authentication Code) is more than just a hash, but it's also different from a digital signature.
+>
+> In short:
+> * A hash doesn't require a key at all. It just produces a unique "fingerprint" for some input.
+> * A MAC (Message Authentication Code) is also a unique "fingerprint" (for the ciphertext), but it **requires** use of the symmetric secret key. So, a MAC can only be computed (and verified) by a party that is in possession of the symmetric secret key.
+> * A Digital Signature is *also* a unique "fingerprint" (for the ciphertext), but is is implemented by an *asymmetric* key pair (i.e., a private and public key pair). A digital signature can only be calculated by the owner of the private key, but anyone in possession of the public key can verify such a signature.
+>   (Asymmetric algotithms are beyond the scope of this workbook, although we'll mention them again briefly later in this section.)
+
+### A brief introduction to GCM mode (an AEAD scheme)
+
+Just as CBC mode requires an IV, GCM mode requires a **nonce** (a "**n**umber used **once**").
+
+> [!NOTE]
+> The difference between an *IV* and a *nonce* is subtle but important.
+>
+> Both IVs and nonces must be *unique* in combination with a given secret key. In other words, our earlier claim that (key, IV) pairs should be unique for every encryption operation ALSO holds true for (key, nonce) pairs.
+>
+> The *difference* between IV and nonce (specifically, the difference between an IV used in CBC mode versus a nonce used in GCM mode) is that the CBC IV **must** be unpredictable, while the GCM nonce only needs to be **unique** (with respect to the key).
+> For CBC IVs, the "unpredictability" requirement is most commonly met by generating a random IV using a CSPRNG. For GCM nonces, believe it or not, the *ideal* mechanism is to use a simple counter (1, 2, 3, ..., 2**96) since that satisfies the uniqueness requirement using the entire 96-bit space (GCM nonces are 96 bits, or 12 bytes).
+
+> [!CAUTION]
+> While it might seem tempting to use a "simple" 96-bit counter for GCM mode, there are some practical implications that make this approach uncommon.
+
+> For starters, such a counter implementation MUST use some kind of persistent storage to keep track of the last-used counter value. This is actually much harder to implement in practice than you might think!
+>
+> In practice, we typically see AES-GCM implementation using a CSPRNG to produce a random 12-byte (96-bit) nonce precisely because this operation is stateless. But it comes with its own warning: a weakness known as the [Birthday attack](https://en.wikipedia.org/wiki/Birthday_attack) means that we can only safely generate a "unique" (random) nonce for a maximum of 2**48 (281,474,976,710,656) messages before we'd need to generate a new symmetric secret key.
+
+All commands for the remainder of this exercise are entered *directly* into your Python interpreter.
+
+As usual, we need a cryptographically-secure pseudo-random number generator (CSPRNG):
+```python
+from secrets import token_bytes
+```
+
+Regardless of mode, AES requires a shared secret key; generate a new one for this exercise:
+```python
+secret_key = token_bytes(16)
+```
+
+> [!NOTE]
+> Before beginning this exercise:
+>
+> 1. Ensure that your "virtual environment" is activated.
+> 2. Enter the Python interpreter.
+>
+> (Refer back to the first section if you forget how to do #1 or #2.)
+
+Now import the necessary `cryptography` library module. **Unlike previous sections**, for AES GCM notice that we import a combined cipher+mode class `AESGCM` (instead of importing `Cipher`, the `AES` alogithm, and `GCM` mode separately). This usage protects against some accidental misuses:
+```python
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+```
+
+> [!NOTE]
+> Do you notice an omission from the imports?
+>
+> *We do NOT import the PCKS7 padding module for GCM mode.* Why?
+> GCM effectively turns AES into what is known as a "stream cipher." Unlike block ciphers, which operate on a prescribed number of *blocks* of bytes, stream ciphers operate on a single byte at a time. So, for GCM mode, ciphers operate on a single byte at a time and so padding is not required.
+>
+> There *are* cases in which padding the input might be desirable even in GCM mode, but even then PKCS7 is emphatically the *wrong* choice. That discussion is beyond the scope of this workbook, though.
+
+### The AES GCM encryption process
+
+Let's use our same "confidential" plaintext as before *(don't forget to encode as UTF-8 bytes)*:
+```python
+plaintext = "I envy Dr. Kwasa's socks.".encode("utf-8")
+```
+
+Since we also know that GCM mode requires a **unique** 96-bit (12-byte) nonce, let's generate one (noting the caveat about random nonces from earlier):
+```python
+nonce = token_bytes(12)
+```
+
+Let's also choose some "*a*dditional *a*ssociated *d*ata" (the **AD* in **AEAD**) so that we can demonstrate the full API. Remember *Kerckhoff's principle* - our AD is **not** secret.
+Also remember our rule about character encoding: we always encode strings to UTF-8, because cryptographic APIs deal with *bytes*, not strings.
+```python
+aad = "workbook example".encode("utf-8")
+```
+
+We're ready to encrypt, so let's first create our AES GCM cipher, and then perform the encryption operation:
+```python
+cipher = AESGCM(secret_key)
+```
+```python
+ciphertext_and_mac = cipher.encrypt(nonce, plaintext, aad)
+```
+
+> [!TIP]
+> This usage differs significantly from what we saw earlier for ECB and CBC modes.
+>
+> Most notably, this usage is much simpler. That's by design. It's a tendency of modern cryptographic libraries to apply such simplifications in order to avoid (or at least "steer away from") common misuse of cryptographic APIs.
+>
+> In this case, notice that the API of `AESGCM` reinforces the idea that a (key, nonce) pair should not be re-used by removing the nonce from the cipher initialization and placing it instead with the `encrypt()` method arguments.
+> Notice also that our return value is no longer *just* the ciphertext - it's the ciphertext *with the MAC appended*.
+>
+> A convenient side effect of this design is that we **can** now reuse the `cipher` object we created because it is only associated with the secret key.
+
+Recall from an earlier section that AEAD constructions (such as AES GCM) automatically calculate a Message Authentication Code (MAC). You may have been wondering how we make use of that MAC. The previous command to encrypt our plaintext should give you a hint. Notice that the value returned by the `encrypt()` method is **not** just the ciphertext - it's the concatenation of the MAC *and* ciphertext. This is one of the hallmarks of AEAD constructions. When we send the encrypted message to a recipient, we always send *both* the MAC and ciphertext (because the recipient needs to be able to perform the MAC verification so that they can assert the authenticity of the message).
+
+View the ciphertext (just type `ciphertext_and_mac` in the Python interpreter followed by \<Enter\>).  It should look *similar* to this:
+> `b'_8\x8bJ!\xbb $g\xec\xf6s\xf3\xdb\xf5\x96\x89\xe4W\xb3/{ZL\xc6w\x90\x17"\x08\x95\x8aQ9\x930]\x8c=\x12:'`
+
+There are more bytes here than in `b"I envy Dr. Kwasa's socks."`. How many more, exactly?
+```python
+len(ciphertext_and_mac) - len(plaintext)
+```
+You should see that the difference is `16` - i.e., the length of an AES GCM MAC!
+
+Usually at this point the workbook would point out the danger of re-using the same nonce with the same key. We're going to hold off on that discussion until later, after we've covered AES GCM decryption, because there's a suprise in store...
+
+### The AES GCM decryption process
+Now let's see how the ciphertext can be *decrypted* using the same secret key and nonce, and *verified* using the MAC.
+
+**Unlike previous examples using ECB and CBC modes**, here we can safely re-use our `cipher` instance (as noted above).
+
+Since we already have our nonce and *aad*, we can decrypt directly. But first, let's see first hand how MAC verification asserts the authenticity of our message.
+
+There are three cases where MAC verification can fail:
+1. The ciphertext has been corrupted/forged before the recipient receives the message.
+2. The MAC itself has been corrupted/forged before the recipient receives the message.
+3. The recipient uses the wrong "associated data" when decrypting. (Or doesn't specify it at all.)
+
+**Case #1**
+Here we'll just prepend a single byte of "garbage data" to the ciphertext so that the recipient's calculated MAC won't match the message MAC:
+```python
+cipher.decrypt(nonce, b"Z" + ciphertext_and_mac, aad)
+```
+This **should** fail due to `cryptography.exceptions.InvalidTag`.
+
+**Case #2**
+This is a bit more complicated to force-fail, because we can't simply append a "garbage byte" to the MAC (it **must** be exactly 16 bytes in length). Instead, we'll just change a single byte of the MAC.
+The next three commands change the last byte of the MAC to a different byte value.
+```python
+last_mac_byte = ciphertext_and_mac[-1]
+```
+```python
+bad_mac_byte = last_mac_byte - 1 if last_mac_byte > 0 else 0
+```
+```python
+ciphertext_and_bad_mac = ciphertext_and_mac[:-1] + bad_mac_byte.to_bytes()
+```
+At this point, you can simply type `ciphertext_and_mac` followed by \<Enter\> and then `ciphertext_and_bad_mac` followed by \<Enter\> to see both values on your screen. It should be visibly apparent that the LAST byte of each is different.
+Finally, attempt the decryption:
+```python
+cipher.decrypt(nonce, ciphertext_and_bad_mac, aad)
+```
+Again, this **should** fail due to `cryptography.exceptions.InvalidTag`.
+
+**Case #3**
+Here we'll use a different value for *aad* (literally):
+```python
+cipher.decrypt(nonce, ciphertext_and_mac, b"different value")
+```
+Yet again, this **should** fail due to `cryptography.exceptions.InvalidTag`.
+
+Finally, we'll perform the decryption operation expecting success:
+```python
+recovered_plaintext = cipher.decrypt(nonce, ciphertext_and_mac, aad)
+```
+And don't forget to turn our plaintext back into a string!
+```python
+recovered_plaintext.decode("utf-8")
+```
+This last command should produce `"I envy Dr. Kwasa's socks."`, as intended.
+
+### GCM mode and secret_key+nonce re-use
+
+Earlier we learned that secret_key+IV re-use for CBC mode is *catastrophic*. We saw first hand how we could recover an encrypted secret, even without knowing the key, just because we re-used the same (secret_key, IV) pair.
+
+Do we get the same catastrophic result if we re-use the same (secret_key, nonce) pair in GCM mode?
+
+Well, recall that our "signal" of a re-used (secret_key, IV) pair in CBC mode was that we got the *same* ciphertext when encrypting the same plaintext. Does the same thing happen in GCM mode?
+```python
+cipher.encrypt(nonce, plaintext, aad)
+```
+This will display the ciphertext (and MAC) directly on your screen. If you scroll up in your terminal, you should be able to visually confirm that you got the exact same result. This would seem to confirm, based on our prior observations and tests, that re-using the same (secret_key, nonce) pair is also catastrophic for GCM. **Spoiler alert: YES, it is catastrophically bad to re-use the same (secret_key, nonce) pair in GCM mode.**
+
+> [!CAUTION]
+> What you might *not* expect is that (secret_key, nonce) re-use in GCM mode is **even MORE catastrophic** than (secret_key, IV) re-use in CBC mode!
+>
+> This is because an adversary that can acquire ANY two ciphertexts (and their MACs) where the same (secret_key, nonce) was used can gain the ability to forge ciphertexts *and* MACs! The resulting forgeries will be **undetectable**!
+> For example, an adversary could forge a message that instructs your banking system to transfer all funds into another account (of the adversary's choosing). Your system will happily act on that message because it will believe it to be valid (it will pass MAC verification).
+> (For the interested, see [Why AES-GCM Sucks: GHASH Brittleness](https://soatok.blog/2020/05/13/why-aes-gcm-sucks/#ghash).)
+
+The vulnerability described above is far beyond the scope of this workbook as it involves calculating roots of polynomial equations (too much for a quick demo, but very feasible for a determined adversary).
+
+However, another weakness is much easier to demonstrate: (secret_key, nonce) reuse in GCM mode also allows for plaintext recovery under certain conditions.
+
+Try a quick test:
+```python
+ctmac1 = cipher.encrypt(nonce, b"I envy Dr. Kwasa's socks.", b"test1")
+```
+```python
+ctmac2 = cipher.encrypt(nonce, b"Spam and eggs are delicious.", b"test2")
+```
+Here we're simulating use of the same (secret_key, nonce) pair, but as might be expected for two different messages, we've changed both the plaintext and the associated data.
+Display both outputs on your screen by typing `ctmac1` then \<Enter\> followed by `ctmac2` then \<Enter\>.
+The outputs should be *completely* different.
+
+So we're "safe" in thise case, even though we re-used the same (secret_key, nonce) pair, right?
+
+**NO!!!** Re-using (secret_key, nonce) compromises GCM *completely*. For example, if an adversary knows (or can guess) ONE plaintext, then another can be recovered if the same (secret_key, nonce) pair was used for encryption. Try the following working example to see it in action:
+
+1. Exit your Python interpreter (\<Ctrl\>-Z then \<Enter\> on Windows, or \<Ctrl\>-D on Mac/Linux).
+2. At the command prommpt, run `python gcm-nonce-reuse-recover-plaintext.py`
+3. When prompted for plaintext #1, type "I envy Dr. Kwasa's socks." (without quotes) then press \<Enter\>.
+4. When prompted for plaintext #2, type "Spam and eggs are delicious." (without quotes) then press \<Enter\>.
+5. When prompted to choose which plaintext is known/guessed, type "2" (without quotes) then press \<Enter\>.
+
+Enjoy (or be shocked by) the result: the program can guess the other plaintext with **no knowledge of the secret key**!
+Open `gcm-nonce-reuse-recover-plaintext.py` in an editor (or view it in this project on GitHub) and read through the comments for more details of the vulnerability.
+
+> [!TIP]
+> Try the example again, but this time choose "1" for the known/guessed plaintext.
+>
+> What happens? Can you explain why? (Hint: XOR, which is used in the recovery logic, is a *binary* operation - it requires TWO inputs.)
+
+----
+
+## Exercise 4: Symmetric key AEAD encryption/decryption (ChaCha20-Poly1305)
+
+In the previous exercise, we noted that GCM mode, applied to AES, "effectively" turns AES (a block cipher) *into* a stream cipher.
+
+ChaCha20 is a stream cipher by design. It is typically paired with Poly1305, a MAC (Message Authentication Code) scheme, to create another AEAD construction.
+
+While AES-GCM and ChaCha20-Poly1305 are both AEAD constructions, they differ in three important ways:
+
+1. ChaCha20-Poly1305 has a variant - XChaCha20-Poly1305 (note the "X") - that uses a MUCH larger nonce (192 bits instead of 96) to reduce the likelihood of same (secret_key, nonce) collisions when using a random nonce. Notably, both AES-GCM *and* ChaCha20-Poly1305 (under random nonce generation) have a practical message limitation of 2**48 messages, while **X**ChaCha20-Poly1305 is reported to have "no practical limitation." (ref https://www.pycryptodome.org/src/cipher/chacha20).
+2. Poly1305 generates a **new** MAC-calculation key for each message (unlike AES-GCM, which derives the same MAC-calculation key for a given AES secret key.)
+3. AES-GCM is NIST-approved, while (X)ChaCha20-Poly1305 is not. *This matters if your software requirements call for a NIST-compliant AEAD construction!*
+
+Both ChaCha20-Poly135 and AES-GCM are in widespread use, but the points above are important considerations based on project software requirements.
+
+> [!NOTE]
+> Before beginning this exercise:
+>
+> 1. Ensure that your "virtual environment" is activated.
+> 2. Enter the Python interpreter.
+>
+> (Refer back to the first section if you forget how to do #1 or #2.)
+
+> [!NOTE]
+> The Python `cryptography` library, which we are using in this workbook, **does not support** the "X" variant of ChaCha20-Poly1305, so in this exercise we are using a 96-bit (12-byte) nonce.
+
+As usual, we need a cryptographically-secure pseudo-random number generator (CSPRNG):
+```python
+from secrets import token_bytes
+```
+
+Next import `ChaCha20Poly1305`:
+```python
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+```
+
+We always need a shared secret key, so generate a new one for this exercise (note that ChaCha20 uses a 32-byte key:
+```python
+secret_key = token_bytes(32)
+```
+
+### The ChaCha20-Poly1305 encryption process
+
+We'll use our usual "confidential" plaintext:
+```python
+plaintext = "I envy Dr. Kwasa's socks.".encode("utf-8")
+```
+
+ChaCha20 requires a **unique** 96-bit (12-byte) nonce, again noting the caveat about random nonces from earlier (and **X**ChaCha20's improved 192-bit nonce):
+```python
+nonce = token_bytes(12)
+```
+
+Let's also choose our "*a*dditional *a*ssociated *d*ata" so that we can demonstrate the full API:
+```python
+aad = "workbook example".encode("utf-8")
+```
+
+We're ready to encrypt, so let's first create our cipher, and then perform the encryption operation:
+```python
+cipher = ChaCha20Poly1305(secret_key)
+```
+```python
+ciphertext_and_mac = cipher.encrypt(nonce, plaintext, aad)
+```
+
+Since ChaCha20 is a stream cipher, we can easily discover the MAC length (it's 16):
+```python
+len(ciphertext_and_mac) - len(plaintext)
+```
+
+> [!CAUTION]
+> The same warning applies for ChaCha20-Poly1305 as for AES-GCM: **do not reuse (secret_key, nonce) pairs!***
+> (more on this later...)
+
+### The ChaCha20-Poly1305 decryption process
+Now let's see how the ciphertext can be *decrypted* using the same secret key and nonce, and *verified* using the MAC.
+
+As with `AESGCM`, here we can safely re-use our `cipher` instance.
+
+Since we already have our nonce and *aad*, we can decrypt directly. (We could also examine MAC verification failures in the same way we did for AES-GCM, but we skip it here for brevity.)
+
+```python
+recovered_plaintext = cipher.decrypt(nonce, ciphertext_and_mac, aad)
+```
+And don't forget to turn our plaintext back into a string!
+```python
+recovered_plaintext.decode("utf-8")
+```
+This last command should produce `"I envy Dr. Kwasa's socks."`, as intended.
+
+### ChaCha20-Poly1305 and secret_key+nonce re-use
+
+As noted above, ChaCha20-Poly1305 is still susceptible to nonce-reuse vulnerability, with one main difference as compared to AES-GCM: the "GHASH Brittleness" vulnerability does **not** apply to ChaCha20-Poly1305 because the latter does not use the GHASH mechanism to determine the MAC calculation key.
+
+However, ChaCha20-Poly1305 **IS** still vulnerable to the exploit detailed in `gcm-nonce-reuse-recover-plaintext.py` (just with `ChaCha20Poly1305` as the cipher instead of `AESGCM` of course).
+
+> [!TIP]
+> As an optional exercise, you can make a copy of `gcm-nonce-reuse-recover-plaintext.py`, rename it (to something like `ccpoly-nonce-reuse-recover-plaintext.py`), and confirm for yourself that the vulnerability still exists with ChaCha20-Poly1305.
+
+----
+
+## Summary
+
+**Caongratulations!**
+
+If you made it all the way through this workbook, it is fair to say that you know more about software cryptography than *most* developers! (Or at least you're more *aware* of software cryptography practices than most developers!)
+
+This is no small thing! But as with most endeavors, there's MUCH more to learn if you have the interest and motivation. (And, truthfully, I've made a great many simplifications in this workbook - and probably introduced some errors in terminology/conceptualization along the way.)
+
+If you remember none of the detail in this workbook, I hope you at least come away understanding # things:
+
+1. **Your system's security is only as strong as its WEAKEST link.**
+2. The weakest link is seldom the encryption *algorithm* you choose (assuming you've chosen one that is vetted and "approved" by the cryptography community)
+3. The weakest link **CAN** be:
+   - the choice of an *inappropriate block cipher mode* (don't use ECB!)
+   - the *misapplication of the algorithm's concepts* (don't reuse IVs or nonces!)
+   - the *misuse of an API* (don't reuse ciphers that were initialized with an IV or nonce! - a special case of the previous point)
+
