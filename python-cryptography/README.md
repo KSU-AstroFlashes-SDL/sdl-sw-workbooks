@@ -787,10 +787,10 @@ If you made it all the way through this workbook, it is fair to say that you kno
 
 This is no small thing! But as with most endeavors, there's MUCH more to learn if you have the interest and motivation. (And, truthfully, I've made a great many simplifications in this workbook - and probably introduced some errors in terminology/conceptualization along the way.)
 
-If you remember none of the detail in this workbook, I hope you at least come away understanding # things:
+If you remember none of the detail in this workbook, I hope you at least come away understanding three things:
 
 1. **Your system's security is only as strong as its WEAKEST link.**
-2. The weakest link is seldom the encryption *algorithm* you choose (assuming you've chosen one that is vetted and "approved" by the cryptography community)
+2. The weakest link is seldom the encryption *algorithm* you choose (assuming you've chosen one that is vetted and "approved" by the cryptography community).
 3. The weakest link **CAN** be:
    - the choice of an *inappropriate block cipher mode* (don't use ECB!)
    - the *misapplication of the algorithm's concepts* (don't reuse IVs or nonces!)
