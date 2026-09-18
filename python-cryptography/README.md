@@ -749,7 +749,7 @@ len(ciphertext_and_mac) - len(plaintext)
 ```
 
 > [!CAUTION]
-> The same warning applies for ChaCha20-Poly1305 as for AES-GCM: **do not reuse (secret_key, nonce) pairs!***
+> The same warning applies for ChaCha20-Poly1305 as for AES-GCM: **do not reuse (secret_key, nonce) pairs!**
 > (more on this later...)
 
 ### The ChaCha20-Poly1305 decryption process
@@ -792,7 +792,7 @@ If you remember none of the detail in this workbook, I hope you at least come aw
 1. **Your system's security is only as strong as its WEAKEST link.**
 2. The weakest link is seldom the encryption *algorithm* you choose (assuming you've chosen one that is vetted and "approved" by the cryptography community).
 3. The weakest link **CAN** be:
-   - the choice of an *inappropriate block cipher mode* (don't use ECB!)
+   - the choice of an *inappropriate block cipher mode* (don't use ECB, prefer an AEAD construction)
    - the *misapplication of the algorithm's concepts* (don't reuse IVs or nonces!)
    - the *misuse of an API* (don't reuse ciphers that were initialized with an IV or nonce! - a special case of the previous point)
 
