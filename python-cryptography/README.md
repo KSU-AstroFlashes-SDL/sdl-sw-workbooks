@@ -40,6 +40,9 @@ python -m pip install -r requirements.txt
 This is *rule #1* for software cryptography: **use a *trusted* cryptographic library**.
 (Here "trusted" is admittedly a loaded term. The discussion is beyond the scope of this workbook, but in general we mean a library that comes from an author with reasonable credentials and that, ideally, has been publicly audited.)
 
+> [!NOTE]
+> You only need to run the "pip install" command above ONCE for your virtual environment. After the requirements have been installed, they will be available whenever you activate this virtual environment.
+
 ## Exercise 1: Symmetric key encryption/decryption (AES in ECB mode)
 
 Begin by entering the `python` command from your command line (terminal).  This will place you into a running Python interpreter.  (You'll know you're *in* Python because your prompt will change to `>>>`.)
@@ -256,7 +259,7 @@ Important characteristics of an IV are:
 
 1. It must be the same length as the cipher's block size.
 2. It must be unique for each encryption operation.
-3. it must be random. Specifically, it must be *cryptographically scure* random. (Recall our earlier discussion of PRNGs vs. CSPRNGs.)
+3. it must be random. Specifically, it must be *cryptographically secure* random. (Recall our earlier discussion of PRNGs vs. CSPRNGs.)
 
 > [!CAUTION]
 > Failing to adhere to the "important characteristics of an IV" (above) compromises the security of CBC mode!
@@ -264,15 +267,15 @@ Important characteristics of an IV are:
 > Regarding characteristic #1: If the IV is *shorter* than the cipher's block size, then some information -- specifically (block size - IV length) number of bytes at the end of the first plaintext input block -- is "leaked." An adversary can use even this limited information to discover patterns.
 >
 > Regarding characteristic #2:
-> (a) The case of an IV not being unique *in and of itself* is a special case of the previous warning. When N or more bytes of the IV are deterministic (i.e. predictable), then those same byte positions in the first ciphertext block can divulge patterns to an adversary.
-> (b) The case of an IV not being unique *with respect to the secret key* is the most critical case, and is given special explanation below.
+> - The case of an IV not being unique *in and of itself* is a special case of the previous warning. When N or more bytes of the IV are deterministic (i.e. predictable), then those same byte positions in the first ciphertext block can divulge patterns to an adversary.
+> - The case of an IV not being unique *with respect to the secret key* is the most critical case, and is given special explanation below.
 >
 > Regarding characteristic #3: When we say that the IV must be random, we specifically mean that it *cannot* be based on a counter or any other "predictable" pattern, either in part or in whole.
 > *Failing* to ensure the randomness of an IV is the second-most common mistake when CBC mode is incorrectly implemented.
 >
 > The **most** common mistake leading to incorrect CBC implementation is using the same secret-key & IV *combination* for any two encryption operations.
 >
-> In fact, using the same secret-key & IV to encrypt the same message (i.e. same plaintext) twice is actually $\color{red}catastrophic$ for CBC mode.
+> In fact, using the same secret-key & IV to encrypt the same message (i.e. same plaintext) twice is actually **catastrophic** for CBC mode.
 > How? (We'll answer that with an example later on in this exercise...)
 
 ### The AES CBC encryption process
@@ -330,7 +333,7 @@ encryptor = Cipher(AES(secret_key), CBC(iv)).encryptor()
 > [!CAUTION]
 > Recall the [earlier caution, in the ECB mode section](#do-not-reuse-cipher), that "safe/correct cryptographic usage of the `cryptography` API *requires* that the cipher object is **not** reused?"
 > 
-> Notice that we specify the IV when initializing CBC mode (i.e., `CBC(iv)`). Note also our prior statement that *"using the same secret-key & IV to encrypt the same message (i.e. same plaintext) twice is actually catastrophic for CBC mode"*. Look closely at how we initialized the `encryptor` object above. If it were re-used, we'd be re-using the same IV+secret_key combination. Catastrophic! This is why we never re-use encryptor objects. We'll see a working example of the "catastrophe" later.
+> Notice that we specify the IV when initializing CBC mode (i.e., `CBC(iv)`). Note also our prior statement that *"using the same secret-key & IV to encrypt the same message (i.e. same plaintext) twice is actually catastrophic for CBC mode"*. Look closely at how we initialized the `encryptor` object above. If it were re-used, we'd be re-using the same IV+secret_key combination. **Catastrophic!** This is why we never re-use encryptor objects. We'll see a working example of the "catastrophe" later.
 
 > [!TIP]
 > Let's revisit *Kerckhoffs's principle* briefly. Recall: The security of symmetric encryption/decryption relies **solely** on the secrecy of the secret key. In other words, security does **not** depend on secrecy of the IV. In fact, not only does the IV not have to be protected, it is commonly a publically-visible value.
@@ -353,10 +356,10 @@ Let's now demonstrate CBC mode's advantage over ECB mode. Recall that ECB mode's
 new_iv = token_bytes(16)
 ```
 ```python
-encryptor = Cipher(AES(secret_key), CBC(new_iv)).encryptor()
+new_encryptor = Cipher(AES(secret_key), CBC(new_iv)).encryptor()
 ```
 ```python
-encryptor.update(padded_plaintext) + encryptor.finalize()
+new_encryptor.update(padded_plaintext) + encryptor.finalize()
 ```
 
 Notice that *this* ciphertext is completely different from the earlier ciphertext, even though the plaintext has not changed!
@@ -400,10 +403,10 @@ Remember the fundamental purpose of the IV: to serve as a stand-in for the "prev
 Don't take my word for it. PROVE it to yourself:
 
 ```python
->>> encryptor = Cipher(AES(secret_key), CBC(iv)).encryptor()
+encryptor = Cipher(AES(secret_key), CBC(iv)).encryptor()
 ```
 ```python
->>> encryptor.update(padded_plaintext) + encryptor.finalize()
+encryptor.update(padded_plaintext) + encryptor.finalize()
 ```
 Note the output ciphertext. Now repeat those same two commands again (i.e., encrypt using the same IV+secret_key). The output will be *identical*. And now we're right back to the same problem we had with ECB mode! **THIS** is why re-using the same IV+secret_key combination in CBC mode is "catastrophic" - it reduces CBC to ECB, which we've already seen is easily "breakable."
 
@@ -441,14 +444,14 @@ But what if we could somehow simplify confidentiality+authenticity? As it turns 
 
 ### Authenticated Encryption (with Associated Data)
 
-**AE** ([**A**uthenticated **E**ncryption](https://en.wikipedia.org/wiki/Authenticated_encryption)) is an encryption scheme that *simultaneously* ensures data confidentiality (by encryption) and data authenticity (by signing).
-(In contrast, AES-CBC is a non-AE scheme that provides *only* data confidenitality by encryption; you'd need to "manually" sign the encrypted data in a separate step to be able to assert its authenticity.)
+**AE** ([**A**uthenticated **E**ncryption](https://en.wikipedia.org/wiki/Authenticated_encryption)) is an encryption scheme that *simultaneously* ensures data confidentiality (by encryption) and data authenticity (by generating a unique [Message authentication code (MAC)](https://en.wikipedia.org/wiki/Message_authentication_code)).
+In contrast, AES-CBC is a non-AE scheme that provides *only* data confidenitality by encryption; you'd need to "manually" generate a MAC the encrypted data in a separate step to be able to assert its authenticity.
 
 **AEAD** is
 [**A**uthenticated **E**ncryption _with **A**ssociated **D**ata_](https://en.wikipedia.org/wiki/Authenticated_encryption#Authenticated_encryption_with_associated_data).
-This scheme allows you to associate *unencrypted* data with the encrypted data while verifying the authenticity of *both* (as a unit). The canonical example is a network packet where the header data needs to remain unencrypted but the *combination* of unencrypted headers and encrypted payload should be verified as a unit. So you'd verify the digital signature (cryptographic hash) of the headers+payload and only *then* would you decrypt the payload. (Otherwise you'd discard it.)
+This scheme allows you to associate *unencrypted* data with the encrypted data while verifying the authenticity of *both* (as a unit). The canonical example is a network packet where the header data needs to remain unencrypted but the *combination* of unencrypted headers and encrypted payload should be verified as a unit. So you'd verify the MAC of the headers+payload and only *then* would you decrypt the payload. (Otherwise you'd discard it.)
 
-AEAD is the preferred encryption/decryption mechanism in the modern day, precisely because of the combined confidentiality+authenticity mechanism. Many modern software cryptography libraries take this one step further, abstracting (hiding) *all* of the details of cipher setup and initialization behind a simplified API that attempts to make misuse impossible (or at least difficult). Such APIs are beyond the scope of this workbook, as our purpose here is to teach basic concepts.
+AEAD is the preferred encryption/decryption mechanism in the modern day, precisely because of the combined confidentiality+authenticity mechanism. Many modern software cryptography libraries take this one step further, abstracting (hiding) *all* of the details of cipher setup and initialization behind a simplified API that attempts to make misuse impossible (or at least difficult). Such APIs are beyond the scope of this workbook, as our purpose here is to teach basic concepts. (But you should be aware that such APIs exist, because you should prefer those in "real world" implementations!)
 
 Two prominent AEAD constructions are AES-GCM and ChaCha20-Poly1305, covered in the final two exercises below.
 
@@ -482,12 +485,20 @@ Just as CBC mode requires an IV, GCM mode requires a **nonce** (a "**n**umber us
 
 > [!CAUTION]
 > While it might seem tempting to use a "simple" 96-bit counter for GCM mode, there are some practical implications that make this approach uncommon.
-
+>
 > For starters, such a counter implementation MUST use some kind of persistent storage to keep track of the last-used counter value. This is actually much harder to implement in practice than you might think!
 >
-> In practice, we typically see AES-GCM implementation using a CSPRNG to produce a random 12-byte (96-bit) nonce precisely because this operation is stateless. But it comes with its own warning: a weakness known as the [Birthday attack](https://en.wikipedia.org/wiki/Birthday_attack) means that we can only safely generate a "unique" (random) nonce for a maximum of 2**48 (281,474,976,710,656) messages before we'd need to generate a new symmetric secret key.
+> In practice, we typically see AES-GCM implementation using a CSPRNG to produce a random 12-byte (96-bit) nonce precisely because this operation is stateless. But it comes with its own warning: a weakness known as the [Birthday attack](https://en.wikipedia.org/wiki/Birthday_attack) means that we can only safely generate a "unique" (random) nonce for a maximum of 2**48 (281,474,976,710,656) messages before we'd need to generate a new symmetric secret key. (Notice that the 2**48 space is significanty smaller than the theoretical 2**96 space!)
 
 All commands for the remainder of this exercise are entered *directly* into your Python interpreter.
+
+> [!NOTE]
+> Before beginning this exercise:
+>
+> 1. Ensure that your "virtual environment" is activated.
+> 2. Enter the Python interpreter.
+>
+> (Refer back to the first section if you forget how to do #1 or #2.)
 
 As usual, we need a cryptographically-secure pseudo-random number generator (CSPRNG):
 ```python
@@ -498,14 +509,6 @@ Regardless of mode, AES requires a shared secret key; generate a new one for thi
 ```python
 secret_key = token_bytes(16)
 ```
-
-> [!NOTE]
-> Before beginning this exercise:
->
-> 1. Ensure that your "virtual environment" is activated.
-> 2. Enter the Python interpreter.
->
-> (Refer back to the first section if you forget how to do #1 or #2.)
 
 Now import the necessary `cryptography` library module. **Unlike previous sections**, for AES GCM notice that we import a combined cipher+mode class `AESGCM` (instead of importing `Cipher`, the `AES` alogithm, and `GCM` mode separately). This usage protects against some accidental misuses:
 ```python
@@ -532,7 +535,7 @@ Since we also know that GCM mode requires a **unique** 96-bit (12-byte) nonce, l
 nonce = token_bytes(12)
 ```
 
-Let's also choose some "*a*dditional *a*ssociated *d*ata" (the **AD* in **AEAD**) so that we can demonstrate the full API. Remember *Kerckhoff's principle* - our AD is **not** secret.
+Let's also choose some "*a*dditional *a*ssociated *d*ata" (the *AD* in **AEAD**) so that we can demonstrate the full API. Remember *Kerckhoff's principle* - our AD is **not** secret.
 Also remember our rule about character encoding: we always encode strings to UTF-8, because cryptographic APIs deal with *bytes*, not strings.
 ```python
 aad = "workbook example".encode("utf-8")
@@ -556,7 +559,7 @@ ciphertext_and_mac = cipher.encrypt(nonce, plaintext, aad)
 >
 > A convenient side effect of this design is that we **can** now reuse the `cipher` object we created because it is only associated with the secret key.
 
-Recall from an earlier section that AEAD constructions (such as AES GCM) automatically calculate a Message Authentication Code (MAC). You may have been wondering how we make use of that MAC. The previous command to encrypt our plaintext should give you a hint. Notice that the value returned by the `encrypt()` method is **not** just the ciphertext - it's the concatenation of the MAC *and* ciphertext. This is one of the hallmarks of AEAD constructions. When we send the encrypted message to a recipient, we always send *both* the MAC and ciphertext (because the recipient needs to be able to perform the MAC verification so that they can assert the authenticity of the message).
+Recall from an earlier section that AEAD constructions (such as AES GCM) automatically calculate a Message Authentication Code (MAC). You may have been wondering how we make use of that MAC. The previous command to encrypt our plaintext should give you a hint. Notice that the value returned by the `encrypt()` method is **not** just the ciphertext - it's the concatenation of the MAC *and* ciphertext. This is one of the hallmarks of AEAD constructions. When we send the encrypted message to a recipient, we always send *both* the MAC and ciphertext. This way, the recipient can calculate the "expected" MAC and compare it to the received MAC for verification.
 
 View the ciphertext (just type `ciphertext_and_mac` in the Python interpreter followed by \<Enter\>).  It should look *similar* to this:
 > `b'_8\x8bJ!\xbb $g\xec\xf6s\xf3\xdb\xf5\x96\x89\xe4W\xb3/{ZL\xc6w\x90\x17"\x08\x95\x8aQ9\x930]\x8c=\x12:'`
@@ -600,7 +603,7 @@ bad_mac_byte = last_mac_byte - 1 if last_mac_byte > 0 else 0
 ```python
 ciphertext_and_bad_mac = ciphertext_and_mac[:-1] + bad_mac_byte.to_bytes()
 ```
-At this point, you can simply type `ciphertext_and_mac` followed by \<Enter\> and then `ciphertext_and_bad_mac` followed by \<Enter\> to see both values on your screen. It should be visibly apparent that the LAST byte of each is different.
+At this point, you can simply type `ciphertext_and_mac` followed by \<Enter\> and then `ciphertext_and_bad_mac` followed by \<Enter\> to see both values on your screen. It should be visually apparent that the LAST byte of each is different.
 Finally, attempt the decryption:
 ```python
 cipher.decrypt(nonce, ciphertext_and_bad_mac, aad)
@@ -669,7 +672,7 @@ So we're "safe" in thise case, even though we re-used the same (secret_key, nonc
 5. When prompted to choose which plaintext is known/guessed, type "2" (without quotes) then press \<Enter\>.
 
 Enjoy (or be shocked by) the result: the program can guess the other plaintext with **no knowledge of the secret key**!
-Open `gcm-nonce-reuse-recover-plaintext.py` in an editor (or view it in this project on GitHub) and read through the comments for more details of the vulnerability.
+View [gcm-nonce-reuse-recover-plaintext.py](gcm-nonce-reuse-recover-plaintext.py) and read through the comments for more details of the vulnerability.
 
 > [!TIP]
 > Try the example again, but this time choose "1" for the known/guessed plaintext.
@@ -749,7 +752,7 @@ len(ciphertext_and_mac) - len(plaintext)
 ```
 
 > [!CAUTION]
-> The same warning applies for ChaCha20-Poly1305 as for AES-GCM: **do not reuse (secret_key, nonce) pairs!**
+> The same warning applies for ChaCha20-Poly1305 as for AES-GCM: **do not reuse (secret_key, nonce) pairs!***
 > (more on this later...)
 
 ### The ChaCha20-Poly1305 decryption process
@@ -781,7 +784,7 @@ However, ChaCha20-Poly1305 **IS** still vulnerable to the exploit detailed in `g
 
 ## Summary
 
-**Congratulations!**
+**Caongratulations!**
 
 If you made it all the way through this workbook, it is fair to say that you know more about software cryptography than *most* developers! (Or at least you're more *aware* of software cryptography practices than most developers!)
 
@@ -792,7 +795,12 @@ If you remember none of the detail in this workbook, I hope you at least come aw
 1. **Your system's security is only as strong as its WEAKEST link.**
 2. The weakest link is seldom the encryption *algorithm* you choose (assuming you've chosen one that is vetted and "approved" by the cryptography community).
 3. The weakest link **CAN** be:
-   - the choice of an *inappropriate block cipher mode* (don't use ECB, prefer an AEAD construction)
+   - the choice of an *inappropriate block cipher mode* (don't use ECB!)
    - the *misapplication of the algorithm's concepts* (don't reuse IVs or nonces!)
    - the *misuse of an API* (don't reuse ciphers that were initialized with an IV or nonce! - a special case of the previous point)
+
+And one "bonus" thing:
+
+It is **your prerogative** as a *conscientious* software developer to insist that safe practices be followed in software cryptography!
+(This is particularly true with respect to the dangers of IV/nonce re-use, which is often misunderstood. Case in point: the examples we've used to explore secret recovery are *not trivial*; they have been adapted from *real world* scenarios!)
 
