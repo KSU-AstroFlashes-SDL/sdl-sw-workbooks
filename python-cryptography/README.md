@@ -781,7 +781,7 @@ However, ChaCha20-Poly1305 **IS** still vulnerable to the exploit detailed in `g
 
 ## Summary
 
-**Caongratulations!**
+**Congratulations!**
 
 If you made it all the way through this workbook, it is fair to say that you know more about software cryptography than *most* developers! (Or at least you're more *aware* of software cryptography practices than most developers!)
 
